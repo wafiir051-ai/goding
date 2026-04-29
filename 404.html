@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Goding</title>
+    <script>
+      var path = location.pathname;
+      var base = '/goding/';
+      if (!path.startsWith(base)) {
+        var newPath = path.replace(/^\/?/, base);
+        location.replace(newPath);
+      }
+    </script>
+  </head>
+  <body></body>
+</html>
