@@ -17,10 +17,21 @@ export default function VisitorStats() {
   };
 
   const updateTotalVisits = async () => {
-    const { data } = await supabase.from('site_stats').select('total_visits').eq('id', 1).single();
-    const currentTotal = data?.total_visits || 0;
-    await supabase.from('site_stats').update({ total_visits: currentTotal + 1 }).eq('id', 1);
-    setTotalVisits(currentTotal + 1);
+    const alreadyCounted = sessionStorage.getItem('visit_counted');
+    if (alreadyCounted) {
+      const { data } = await supabase.from('site_stats').select('total_visits').eq('id', 1).single();
+      setTotalVisits(data?.total_visits || 0);
+      return;
+    }
+
+    const { data, error } = await supabase.rpc('increment_total_visits');
+    if (!error && typeof data === 'number') {
+      setTotalVisits(data);
+      sessionStorage.setItem('visit_counted', '1');
+    } else {
+      const { data: fallback } = await supabase.from('site_stats').select('total_visits').eq('id', 1).single();
+      setTotalVisits(fallback?.total_visits || 0);
+    }
   };
 
   const updateActiveSession = async () => {

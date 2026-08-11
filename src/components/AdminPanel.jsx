@@ -6,6 +6,8 @@ import { Edit2, Trash2, LogOut, Save } from 'lucide-react';
 export default function AdminPanel() {
   const { user, signIn, signOut } = useAuth();
   const [plans, setPlans] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [orderFilter, setOrderFilter] = useState('all');
   const [testimonials, setTestimonials] = useState([]);
   const [clients, setClients] = useState([]);
   const [marquee, setMarquee] = useState({ text: '', speed: 20, is_active: true });
@@ -34,7 +36,8 @@ export default function AdminPanel() {
     const { data: c } = await supabase.from('clients').select('*').order('order_index');
     const { data: m } = await supabase.from('marquee_settings').select('*').maybeSingle();
     const { data: logo } = await supabase.from('site_settings').select('value').eq('key', 'logo_url').single();
-    setPlans(p || []); setTestimonials(t || []); setClients(c || []);
+    const { data: o } = await supabase.from('payment_orders').select('*').order('created_at', { ascending: false });
+    setPlans(p || []); setTestimonials(t || []); setClients(c || []); setOrders(o || []);
     if (m) setMarquee(m);
     if (logo) setLogoUrl(logo.value);
   };
@@ -136,6 +139,7 @@ export default function AdminPanel() {
           <button onClick={() => setActiveTab('clients')} className={`py-2 px-6 rounded-t-lg ${activeTab === 'clients' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>Klien</button>
           <button onClick={() => setActiveTab('marquee')} className={`py-2 px-6 rounded-t-lg ${activeTab === 'marquee' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>Marquee</button>
           <button onClick={() => setActiveTab('settings')} className={`py-2 px-6 rounded-t-lg ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>Pengaturan</button>
+          <button onClick={() => setActiveTab('orders')} className={`py-2 px-6 rounded-t-lg ${activeTab === 'orders' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>Pesanan{orders.filter(o => o.status === 'pending').length > 0 && <span className="ml-2 bg-yellow-500 text-black text-xs px-2 py-0.5 rounded-full">{orders.filter(o => o.status === 'pending').length}</span>}</button>
         </div>
 
         {activeTab === 'pricing' && (
@@ -228,6 +232,61 @@ export default function AdminPanel() {
             {logoUrl && <img src={logoUrl} alt="Logo" className="h-20 mb-4" />}
             <input type="file" accept="image/*" onChange={handleLogoFileChange} className="text-white mb-4" />
             <button onClick={handleLogoUpload} disabled={uploading} className="px-6 py-2 bg-cyan-600 rounded-xl">{uploading ? 'Uploading...' : 'Upload Logo'}</button>
+          </div>
+        )}
+
+        {activeTab === 'orders' && (
+          <div>
+            <div className="flex gap-3 mb-6">
+              <button onClick={() => setOrderFilter('all')} className={`px-5 py-2 rounded-xl text-sm ${orderFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>Semua ({orders.length})</button>
+              <button onClick={() => setOrderFilter('pending')} className={`px-5 py-2 rounded-xl text-sm ${orderFilter === 'pending' ? 'bg-yellow-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>Pending ({orders.filter(o => o.status === 'pending').length})</button>
+              <button onClick={() => setOrderFilter('paid')} className={`px-5 py-2 rounded-xl text-sm ${orderFilter === 'paid' ? 'bg-green-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>Paid ({orders.filter(o => o.status === 'paid').length})</button>
+            </div>
+            <div className="grid gap-4">
+              {orders.filter(o => orderFilter === 'all' || o.status === orderFilter).length === 0 && (
+                <p className="text-zinc-500 text-center py-10">Belum ada pesanan.</p>
+              )}
+              {orders.filter(o => orderFilter === 'all' || o.status === orderFilter).map(o => {
+                const statusStyle = {
+                  pending: 'bg-yellow-900/50 text-yellow-300',
+                  paid: 'bg-green-900/50 text-green-300',
+                  failed: 'bg-red-900/50 text-red-300',
+                  expired: 'bg-zinc-700 text-zinc-400',
+                }[o.status] || 'bg-zinc-700 text-zinc-400';
+                return (
+                  <div key={o.id} className="bg-zinc-900 p-6 rounded-3xl flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                    <div>
+                      <div className="flex items-center gap-3 mb-1">
+                        <h3 className="text-lg font-semibold text-white">{o.plan_name}</h3>
+                        <span className={`text-xs px-3 py-1 rounded-full ${statusStyle}`}>{o.status}</span>
+                      </div>
+                      <p className="text-zinc-400 text-sm">Rp {Number(o.amount).toLocaleString('id-ID')} &middot; {o.order_ref}</p>
+                      <p className="text-zinc-500 text-xs mt-1">{new Date(o.created_at).toLocaleString('id-ID')}</p>
+                    </div>
+                    <div className="text-sm text-zinc-300">
+                      <p>{o.customer_name || '-'}</p>
+                      <p className="text-zinc-500">{o.customer_email || '-'}</p>
+                      <p className="text-zinc-500">{o.customer_phone || '-'}</p>
+                    </div>
+                    {o.customer_phone && (() => {
+                      const waMessage = 'Halo ' + (o.customer_name || '') + ', kami ingin menindaklanjuti pesanan ' + o.order_ref + ' (' + o.plan_name + ').';
+                      const waNumber = o.customer_phone.replace(/[^0-9]/g, '');
+                      const waLink = 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent(waMessage);
+                      return (
+                          <a
+                          href={waLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white text-sm rounded-xl text-center"
+                        >
+                          Hubungi via WA
+                        </a>
+                      );
+                    })()}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

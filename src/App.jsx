@@ -64,16 +64,16 @@ function App() {
     <AuthProvider>
       <AnimatedCursor />
       <ParticleBackground />
-      <div className="relative z-10 bg-[#0a0a0a] text-white min-h-screen overflow-x-hidden">
+      <div className="relative z-10 bg-[#0a0a0a] text-white min-h-screen overflow-x-clip">
         <Navbar />
         <Hero />
-        <WaveDivider fromColor="#000000" toColor="#18181b" />
+        <WaveDivider fromColor="#000000" toColor="#ffffff" />
         <BentoServices />
         <ProcessSticky />
         <ClientsSection />
-        <WaveDivider fromColor="#18181b" toColor="#000000" />
+        <WaveDivider fromColor="#ffffff" toColor="#000000" />
         <Pricing />
-        <WaveDivider fromColor="#000000" toColor="#18181b" />
+        <WaveDivider fromColor="#000000" toColor="#ffffff" />
         <EnvelopeTestimonials />
         <Footer />
       </div>

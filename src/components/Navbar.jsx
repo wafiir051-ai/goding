@@ -1,12 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 import WhatsAppModal from './WhatsAppModal';
+import { supabase } from '../lib/supabase';
 
 export default function Navbar() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+
+  useEffect(() => {
+    supabase.from('site_settings').select('value').eq('key', 'logo_url').single().then(({ data }) => {
+      if (data?.value) setLogoUrl(data.value);
+    }).catch(() => {});
+  }, []);
 
   const openModal = (msg) => { setPendingMessage(msg); setIsModalOpen(true); };
   const handleSelectNumber = (phoneNumber, message) => { 
@@ -46,9 +54,13 @@ export default function Navbar() {
         >
           {/* Logo */}
           <div className="flex items-center gap-2 md:gap-3">
-            <div className="w-8 h-8 md:w-9 md:h-9 bg-gradient-to-br from-blue-600 to-cyan-400 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg md:text-xl">G</span>
-            </div>
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="w-8 h-8 md:w-9 md:h-9 rounded-xl object-cover" />
+            ) : (
+              <div className="w-8 h-8 md:w-9 md:h-9 bg-gradient-to-br from-blue-600 to-cyan-400 rounded-xl flex items-center justify-center">
+                <span className="text-white font-bold text-lg md:text-xl">G</span>
+              </div>
+            )}
             <span className="font-semibold text-lg md:text-xl lg:text-2xl tracking-tight text-white">goding</span>
           </div>
 
