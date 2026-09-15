@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import useEmblaCarousel from 'embla-carousel-react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { createOrderAndGetPaymentUrl } from '../lib/orders';
 import RevealOnScroll from './RevealOnScroll';
 import WhatsAppModal from './WhatsAppModal';
 
@@ -72,11 +73,55 @@ function TechCarousel({ techs }) {
   );
 }
 
+function CheckoutChoiceModal({ isOpen, onClose, plan, onChooseWhatsApp, onChoosePay, isCreatingOrder }) {
+  if (!isOpen || !plan) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+      <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+        <h3 className="text-white text-lg font-bold mb-1">Lanjutkan Paket {plan.name}</h3>
+        <p className="text-zinc-400 text-sm mb-5">
+          Total: <span className="text-cyan-400 font-semibold">Rp{formatPrice(plan.price)}</span>
+        </p>
+
+        <div className="space-y-3">
+          <button
+            onClick={onChoosePay}
+            disabled={isCreatingOrder}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-cyan-500 to-blue-500 text-black hover:shadow-cyan-500/30 hover:shadow-lg transition-all disabled:opacity-50"
+          >
+            {isCreatingOrder ? 'Memproses...' : 'Bayar Sekarang'}
+          </button>
+          <button
+            onClick={onChooseWhatsApp}
+            disabled={isCreatingOrder}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold bg-zinc-800 text-white hover:bg-zinc-700 transition-all disabled:opacity-50"
+          >
+            Tanya Dulu via WhatsApp
+          </button>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="mt-4 w-full text-center text-xs text-zinc-500 hover:text-zinc-300 transition"
+        >
+          Batal
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Pricing() {
   const [plans, setPlans] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState('');
   const [threeDSettings, setThreeDSettings] = useState({ enabled: true, intensity: 0.6, scale: 1.03 });
+
+  const [isChoiceOpen, setIsChoiceOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  const [orderError, setOrderError] = useState('');
 
   useEffect(() => {
     supabase.from('pricing_plans').select('*').order('price').then(({ data }) => setPlans(data || []));
@@ -100,15 +145,52 @@ export default function Pricing() {
     setIsModalOpen(false);
   };
 
+  const openChoice = (plan) => {
+    setOrderError('');
+    setSelectedPlan(plan);
+    setIsChoiceOpen(true);
+  };
+
+  const handleChooseWhatsApp = () => {
+    setIsChoiceOpen(false);
+    openModal(`Saya tertarik dengan paket ${selectedPlan.name} - Rp ${formatPrice(selectedPlan.price)}`);
+  };
+
+  const handleChoosePay = async () => {
+    if (!selectedPlan) return;
+    setIsCreatingOrder(true);
+    setOrderError('');
+    try {
+      const { paymentUrl } = await createOrderAndGetPaymentUrl(selectedPlan);
+      window.open(paymentUrl, '_blank');
+      setIsChoiceOpen(false);
+    } catch (err) {
+      setOrderError(err.message || 'Gagal membuat pesanan, coba lagi.');
+    } finally {
+      setIsCreatingOrder(false);
+    }
+  };
+
   return (
     <section id="pricing" style={{position:"relative", overflow:"hidden"}} className="pt-24 pb-16 md:pt-28 md:pb-24 bg-[#0a0a0a] px-4 sm:px-6">
       <WhatsAppModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSelect={handleSelectNumber} message={pendingMessage} />
+      <CheckoutChoiceModal
+        isOpen={isChoiceOpen}
+        onClose={() => setIsChoiceOpen(false)}
+        plan={selectedPlan}
+        onChooseWhatsApp={handleChooseWhatsApp}
+        onChoosePay={handleChoosePay}
+        isCreatingOrder={isCreatingOrder}
+      />
       <div className="max-w-7xl mx-auto">
         <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-center font-bold text-white mb-10 md:mb-16 pt-2">
           Paket Harga
         </h2>
+        {orderError && (
+          <p className="text-center text-red-400 text-sm mb-4">{orderError}</p>
+        )}
         <div className="flex gap-4 overflow-x-auto pb-6 mt-8 snap-x snap-mandatory sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {plans.map((plan, idx) => { const cardKey = plan.id;
+          {plans.map((plan) => {
             const hoverEffect = threeDSettings.enabled ? {
               rotateX: threeDSettings.intensity * 6,
               rotateY: threeDSettings.intensity * 8,
@@ -117,7 +199,7 @@ export default function Pricing() {
             } : { scale: threeDSettings.scale };
 
             return (
-              <div  className="min-w-[85vw] sm:min-w-0 snap-center flex-shrink-0 sm:flex-shrink">
+              <div key={plan.id} className="min-w-[85vw] sm:min-w-0 snap-center flex-shrink-0 sm:flex-shrink">
                 <motion.div
                   initial={{ rotateX: 0, rotateY: 0, scale: 1 }}
                   whileHover={hoverEffect}
@@ -152,7 +234,7 @@ export default function Pricing() {
                   </div>
                   <TechCarousel techs={plan.tech_stack} />
                   <button
-                    onClick={() => openModal(`Saya tertarik dengan paket ${plan.name} - Rp ${formatPrice(plan.price)}`)}
+                    onClick={() => openChoice(plan)}
                     className={`mt-5 w-full py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-all ${
                       plan.popular
                         ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-black hover:shadow-cyan-500/30 hover:shadow-lg'
