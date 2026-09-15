@@ -31,3 +31,4 @@ logs/
 .cache/
 .vercel
 .env*.local
+.env*
